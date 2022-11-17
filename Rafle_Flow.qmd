@@ -1,0 +1,130 @@
+---
+title: "Raffle_Flow"
+format: html
+editor: visual
+---
+
+# Yuka_with_Data Monthly Raffle
+
+Viewers participate monthly raffle by typing !focus \<their task of the day\>. At the end of each month, 2 winners are picked. Winners will receive a monthly VIP badge and custom command to use in the chat.
+
+## Running Raffle - Picking 2 Winners
+
+How to count !focus entries: one entry per user per stream (day)
+
+## Process
+
+### Load Libraries
+
+```{r}
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+library(tidyverse)
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
+library(lubridate)
+if(!require(textdata)) install.packages("textdata", repos = "http://cran.us.r-project.org")
+library(textdata)
+if(!require(readr)) install.packages("readr", repos = "http://cran.us.r-project.org")
+library(readr)
+if(!require(reactable)) install.packages("reactable", repos = "http://cran.us.r-project.org")
+library(reactable)
+if(!require(sentimentr)) install.packages("sentimentr", repos = "http://cran.us.r-project.org")
+library(sentimentr)
+```
+
+### Load Data
+
+Retrieve a raw data from the source and save the data into csv file in the current directly.
+
+```{r}
+Raffle_Oct_2022 <- read_csv("Raffle Oct 2022 - Sheet1.csv", 
+                            col_names = FALSE)
+View(Raffle_Oct_2022)
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+### Restructure Data
+
+```{r}
+# Change column names
+names(Raffle_Oct_2022) <- c("id", "focus_entry", "User", "Category", "Date")
+
+# Change Date from character to Date property
+Raffle_Oct_2022$Date <- as.Date(Raffle_Oct_2022$Date, "%m/%d/%y")
+```
+
+### Create Raffle Condition
+
+One entry per viewer per stream (Day)
+
+```{r}
+# Create a condition of "One Entry Per User Per Stream (Day)
+# and Save it into a new object
+User_Distinct <- Raffle_Oct_2022 %>% group_by(Date)
+User_Distinct <- User_Distinct %>% distinct(User)
+View(User_Distinct)
+```
+
+### Picking 2 Winners
+
+```{r}
+# Pick 2 winners using random sampling
+sample(User_Distinct$User, 2, replace = FALSE, prob = NULL)
+
+```
+
+### Visualization
+
+```{r}
+# Horizontal Bar Graph to visualize top users
+User_Distinct %>% 
+  group_by(User) %>% 
+  summarize(n=n()) %>% 
+  ggplot(aes(x = n, y = reorder(User, n))) + 
+  geom_bar(stat = "identity", color = 'violet', fill = 'violet') +
+  ggtitle("October 2022 !focus entry counts") +
+  xlab("Count") +
+  ylab("User")
+```
+
+```{r}
+# (Option) When I need to use a Spin Wheel: Count by user names
+User_Distinct %>% 
+  group_by(User) %>% 
+  summarize(n=n()) %>% 
+  arrange(desc(n)) %>% 
+  reactable()
+```
+
+## Sentiment & Word Cloud
+
+```{r}
+# Break up into each piece of words + remove Stop Words
+raffle_words <- Raffle_Oct_2022 %>% 
+  unnest_tokens(word, focus_entry) %>% 
+  anti_join(stop_words)
+View(raffle_words)
+# load `raffle_words` df to Tableau to generate Word Cloud
+```
+
+```{r}
+# run SentimentR function to generate ave_sentiment values
+sent_txt <- get_sentences(Raffle_Oct_2022$focus_entry)
+sent_txt <- sentiment_by(sent_txt)
+summary(sent_txt)
+```
+
+```{r}
+# Prep for data to merge
+sent_txt <- sent_txt %>% select(ave_sentiment)
+# Create a new dataset with ave_sentiment values 
+New_Raffle_Oct_2022 <- cbind(Raffle_Oct_2022, sent_txt)
+```
+
+### Save new dataframes into csv files
+
+```{r}
+# save dataframes into csv files
+write.csv(New_Raffle_Oct_2022, "C:\\Yuka_with_Data\\Project\\Data\\New_Raffle_Oct_2022.csv", row.name = TRUE)
+write.csv(raffle_words, "C:\\Yuka_with_Data\\Project\\Data\\Raffle_Words.csv", row.name = TRUE)
+```
